@@ -197,9 +197,15 @@ Backup:
 
 ---
 
+Вот исправленный блок установки для README — сразу после создания директории идёт **полный способ создания файла со скриптом через heredoc**, чтобы пользователь мог просто вставить одной командой.
+
+Заменяй раздел **"Установка с нуля"** на этот.
+
+---
+
 # Установка с нуля
 
-# Шаг 1. Создать директорию
+## Шаг 1. Создать директории
 
 ```bash
 mkdir -p /opt/bin
@@ -208,17 +214,186 @@ mkdir -p /opt/etc/mihomo/proxy-providers
 
 ---
 
-# Шаг 2. Создать скрипт
+## Шаг 2. Создать скрипт
+
+Выполнить команду:
 
 ```bash
-vi /opt/bin/update_mihomo.sh
-```
+cat > /opt/bin/update_mihomo.sh << 'EOF'
+#!/bin/sh
 
-Вставить содержимое скрипта.
+URL="https://raw.githubusercontent.com/tiagorrg/vless-checker/main/docs/keys.json"
+
+OUT="/opt/etc/mihomo/proxy-providers/proxies.yaml"
+TMP="/tmp/proxies.yaml"
+
+JSON="/tmp/keys.json"
+JSONTMP="/tmp/keys.json.tmp"
+
+LAT="/tmp/latency.txt"
+CACHE="/tmp/geo_cache.txt"
+
+COUNT=0
+
+mkdir -p /opt/etc/mihomo/proxy-providers
+
+trap 'rm -f "$TMP" "$LAT" "${LAT}.sorted" "$JSONTMP"' EXIT
+
+echo "[INFO] downloading JSON..."
+
+curl -L --silent --show-error --fail "$URL" -o "$JSONTMP" || exit 1
+mv "$JSONTMP" "$JSON"
+
+[ ! -s "$JSON" ] && echo "[ERROR] empty JSON" && exit 1
+
+> "$LAT"
+[ ! -f "$CACHE" ] && touch "$CACHE"
+
+get_flag() {
+  case "$1" in
+    AL) echo "🇦🇱" ;; AD) echo "🇦🇩" ;; AM) echo "🇦🇲" ;;
+    AT) echo "🇦🇹" ;; AZ) echo "🇦🇿" ;; BY) echo "🇧🇾" ;;
+    BE) echo "🇧🇪" ;; BA) echo "🇧🇦" ;; BG) echo "🇧🇬" ;;
+    HR) echo "🇭🇷" ;; CY) echo "🇨🇾" ;; CZ) echo "🇨🇿" ;;
+    DK) echo "🇩🇰" ;; EE) echo "🇪🇪" ;; FI) echo "🇫🇮" ;;
+    FR) echo "🇫🇷" ;; GE) echo "🇬🇪" ;; DE) echo "🇩🇪" ;;
+    GR) echo "🇬🇷" ;; HU) echo "🇭🇺" ;; IS) echo "🇮🇸" ;;
+    IE) echo "🇮🇪" ;; IT) echo "🇮🇹" ;; LV) echo "🇱🇻" ;;
+    LI) echo "🇱🇮" ;; LT) echo "🇱🇹" ;; LU) echo "🇱🇺" ;;
+    MT) echo "🇲🇹" ;; MD) echo "🇲🇩" ;; MC) echo "🇲🇨" ;;
+    ME) echo "🇲🇪" ;; NL) echo "🇳🇱" ;; MK) echo "🇲🇰" ;;
+    NO) echo "🇳🇴" ;; PL) echo "🇵🇱" ;; PT) echo "🇵🇹" ;;
+    RO) echo "🇷🇴" ;; RU) echo "🇷🇺" ;; SM) echo "🇸🇲" ;;
+    RS) echo "🇷🇸" ;; SK) echo "🇸🇰" ;; SI) echo "🇸🇮" ;;
+    ES) echo "🇪🇸" ;; SE) echo "🇸🇪" ;; CH) echo "🇨🇭" ;;
+    TR) echo "🇹🇷" ;; UA) echo "🇺🇦" ;; GB) echo "🇬🇧" ;;
+    US) echo "🇺🇸" ;; SG) echo "🇸🇬" ;; TH) echo "🇹🇭" ;;
+    JP) echo "🇯🇵" ;; KR) echo "🇰🇷" ;; HK) echo "🇭🇰" ;;
+    TW) echo "🇹🇼" ;; CA) echo "🇨🇦" ;; AU) echo "🇦🇺" ;;
+    NZ) echo "🇳🇿" ;; BR) echo "🇧🇷" ;; AR) echo "🇦🇷" ;;
+    MX) echo "🇲🇽" ;; ZA) echo "🇿🇦" ;;
+    *) echo "🏳️" ;;
+  esac
+}
+
+get_country() {
+  server="$1"
+
+  cached=$(grep -m1 "^$server|" "$CACHE" 2>/dev/null | cut -d'|' -f2)
+
+  [ -n "$cached" ] && {
+    echo "$cached"
+    return
+  }
+
+  geo=$(curl -s --max-time 2 "http://ip-api.com/json/$server")
+  cc=$(echo "$geo" | grep -o '"countryCode":"[^"]*' | cut -d'"' -f4)
+
+  [ -z "$cc" ] && cc="XX"
+
+  echo "$server|$cc" >> "$CACHE"
+
+  tail -n 1000 "$CACHE" > "${CACHE}.tmp" && mv "${CACHE}.tmp" "$CACHE"
+
+  echo "$cc"
+}
+
+get_latency() {
+  host="$1"
+  port="$2"
+  sni="$3"
+
+  start=$(date +%s)
+
+  timeout 2 openssl s_client \
+    -connect "$host:$port" \
+    -servername "$sni" \
+    </dev/null >/dev/null 2>&1
+
+  end=$(date +%s)
+
+  echo $(( (end - start) * 1000 ))
+}
+
+echo "[INFO] parsing nodes..."
+
+grep -oE 'vless://[^"]+' "$JSON" | sort -u | while IFS= read -r line; do
+
+  echo "$line" | grep -q "@" || continue
+
+  uuid=$(echo "$line" | sed -n 's|vless://\([^@]*\)@.*|\1|p')
+  server=$(echo "$line" | sed -n 's|vless://[^@]*@\([^:]*\):.*|\1|p')
+  port=$(echo "$line" | sed -n 's|.*:\([0-9]*\).*|\1|p')
+  pbk=$(echo "$line" | sed -n 's|.*pbk=\([^&]*\).*|\1|p')
+  sid=$(echo "$line" | sed -n 's|.*sid=\([^&]*\).*|\1|p')
+  sni=$(echo "$line" | sed -n 's|.*sni=\([^&#]*\).*|\1|p')
+
+  sid=$(echo "$sid" | cut -d'#' -f1)
+  sni=$(echo "$sni" | cut -d'#' -f1)
+
+  [ -z "$server" ] && continue
+  [ -z "$port" ] && continue
+  [ -z "$uuid" ] && continue
+  [ -z "$pbk" ] && continue
+  [ -z "$sid" ] && continue
+  [ -z "$sni" ] && continue
+
+  ms=$(get_latency "$server" "$port" "$sni")
+  [ "$ms" -gt 1200 ] && continue
+
+  cc=$(get_country "$server")
+  flag=$(get_flag "$cc")
+
+  echo "$ms|$cc|$server|$port|$uuid|$pbk|$sid|$sni|$flag" >> "$LAT"
+
+done
+
+sort -t"|" -k1,1n -k3,3 "$LAT" | awk -F'|' '!seen[$3]++' > "${LAT}.sorted"
+
+echo "proxies:" > "$TMP"
+
+while IFS="|" read -r ms cc server port uuid pbk sid sni flag; do
+
+cat >> "$TMP" <<EON
+- name: "$flag $cc | $server:$port (${ms} ms)"
+  type: vless
+  server: $server
+  port: $port
+  uuid: $uuid
+  network: tcp
+  tls: true
+  udp: true
+  servername: $sni
+  flow: xtls-rprx-vision
+  client-fingerprint: chrome
+  reality-opts:
+    public-key: "$pbk"
+    short-id: "$sid"
+
+EON
+
+done < "${LAT}.sorted"
+
+if grep -q "server:" "$TMP"; then
+  if ! cmp -s "$TMP" "$OUT"; then
+    cp "$OUT" "$OUT.bak" 2>/dev/null
+    mv "$TMP" "$OUT"
+    curl -s -X POST http://127.0.0.1:9090/proxies >/dev/null 2>&1
+    echo "[INFO] YAML UPDATED"
+  else
+    rm -f "$TMP"
+    echo "[INFO] no changes"
+  fi
+else
+  rm -f "$TMP"
+  echo "[ERROR] invalid YAML blocked"
+fi
+EOF
+```
 
 ---
 
-# Шаг 3. Сделать исполняемым
+## Шаг 3. Сделать исполняемым
 
 ```bash
 chmod +x /opt/bin/update_mihomo.sh
@@ -226,11 +401,13 @@ chmod +x /opt/bin/update_mihomo.sh
 
 ---
 
-# Шаг 4. Проверить вручную
+## Шаг 4. Проверить
 
 ```bash
 /opt/bin/update_mihomo.sh
 ```
+
+---
 
 Ожидаемый вывод:
 
