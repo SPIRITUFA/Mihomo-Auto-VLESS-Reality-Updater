@@ -1,34 +1,33 @@
 #!/bin/sh
 
-# Убедимся, что скрипт не работает с символами возврата каретки
+# Убедитесь, что скрипт не работает с символами возврата каретки
 sed -i 's/\r//' "$0"
 
 # Обновление репозиториев
 echo "[INFO] Updating repositories..."
 opkg update || echo "[ERROR] Failed to update repositories."
 
-# Установка необходимых пакетов (попробуем обходной путь)
+# Установка необходимых пакетов
 echo "[INFO] Installing required packages..."
 opkg install curl || echo "[ERROR] curl installation failed."
 opkg install grep || echo "[ERROR] grep installation failed."
 
-# Установка vim/awk если их нет в репозиториях
+# Проверка наличия awk и vim, установка их вручную, если они отсутствуют
 echo "[INFO] Checking for missing packages (awk, vim)..."
 if ! opkg list-installed | grep -q "awk"; then
     echo "[INFO] Installing awk manually..."
-    # Установка через альтернативные репозитории или скачивание вручную
+    # Если пакеты не установлены, установите их вручную или через другие репозитории
 fi
 
 if ! opkg list-installed | grep -q "vim"; then
     echo "[INFO] Installing vim manually..."
-    # Установка через альтернативные репозитории или скачивание вручную
+    # Если пакеты не установлены, установите их вручную или через другие репозитории
 fi
 
 # Скачивание обновленного скрипта
 echo "[INFO] Downloading the update script..."
 cat << 'EOF' > /opt/bin/update_mihomo.sh
 #!/bin/sh
-
 URL="https://raw.githubusercontent.com/SPIRITUFA/Mihomo-Auto-VLESS-Reality-Updater/main/update_mihomo.sh"
 OUT="/opt/etc/mihomo/proxy-providers/proxies.yaml"
 TMP="/tmp/proxies.yaml"
