@@ -8,10 +8,6 @@ opkg update
 echo "[INFO] Installing required packages..."
 opkg install curl openssl grep awk vim
 
-# Создание каталога для скрипта
-echo "[INFO] Creating necessary directories..."
-mkdir -p /opt/bin /opt/etc/mihomo/proxy-providers
-
 # Скачивание скрипта
 echo "[INFO] Downloading the update script..."
 cat << 'EOF' > /opt/bin/update_mihomo.sh
@@ -26,7 +22,8 @@ LAT="/tmp/latency.txt"
 CACHE="/tmp/geo_cache.txt"
 COUNT=0
 
-mkdir -p /opt/etc/mihomo/proxy-providers
+# Если файл уже существует, пропускаем его создание
+[ -f "$OUT" ] && echo "[INFO] $OUT already exists. Skipping file creation."
 
 trap 'rm -f "$TMP" "$LAT" "${LAT}.sorted" "$JSONTMP"' EXIT
 
