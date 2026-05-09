@@ -18,7 +18,6 @@ opkg update || { echo "[ERROR] Не удалось обновить репози
 echo "[INFO] Установка необходимых пакетов..."
 install_package "curl"
 install_package "grep"
-install_package "awk"
 install_package "vim"
 
 # Проверка наличия необходимых файлов
