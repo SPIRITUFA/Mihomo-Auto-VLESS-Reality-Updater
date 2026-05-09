@@ -1,225 +1,74 @@
----
+# Мануал по скрипту и установке зависимостей для **Entware** с использованием **vi** редактора
 
-# Mihomo Auto VLESS Reality Updater
-
-Автоматическое обновление VLESS Reality нод для **Mihomo / Clash Meta** с:
-
-* автоматической загрузкой актуальных ключей
-* фильтрацией битых нод
-* проверкой TLS latency
-* автоопределением страны
-* флагами стран
-* сортировкой по задержке
-* дедупликацией
-* безопасным обновлением YAML
-* hot reload через Mihomo API
-* backup предыдущего конфига
+Этот документ предоставляет подробное руководство по использованию и настройке скрипта для автоматического обновления конфигурации прокси-серверов в **Mihomo**. Скрипт скачивает и обрабатывает данные из JSON, получая информацию о прокси-серверах, проверяя задержку и страну, а затем обновляет файл конфигурации YAML.
 
 ---
 
-# Возможности
+## Оглавление
 
-## Что делает скрипт
+1. [Введение](#1-введение)
+2. [Установка зависимостей](#2-установка-зависимостей)
 
-Скрипт автоматически:
+   1. [Обновление репозиториев и установка зависимостей](#21-обновление-репозиториев-и-установка-зависимостей)
+   2. [Установка **vim** (редактор vi)](#22-установка-vim-редактор-vi)
+3. [Создание и сохранение скрипта](#3-создание-и-сохранение-скрипта)
 
-### 1. Загружает актуальные VLESS Reality ключи
-
-Источник:
-
-`https://raw.githubusercontent.com/tiagorrg/vless-checker/main/docs/keys.json`
-
----
-
-### 2. Парсит VLESS URI
-
-Извлекает:
-
-* UUID
-* server
-* port
-* public-key
-* short-id
-* SNI
+   1. [Открытие файла для редактирования](#31-открытие-файла-для-редактирования)
+   2. [Вставка скрипта](#32-вставка-скрипта)
+   3. [Сохранение и выход](#33-сохранение-и-выход)
+4. [Настройка прав доступа](#4-настройка-прав-доступа)
+5. [Запуск скрипта](#5-запуск-скрипта)
+6. [Автоматизация с использованием Cron](#6-автоматизация-с-использованием-cron)
+7. [Проверка обновлений](#7-проверка-обновлений)
+8. [Заключение](#8-заключение)
 
 ---
 
-### 3. Проверяет валидность ноды
+## 1. Введение
 
-Проверяет:
-
-* наличие всех обязательных параметров
-* формат public-key
-* формат short-id
+Скрипт предназначен для работы в среде **Entware**. Он обрабатывает список прокси-серверов (VLESS), скачивает данные, проверяет их и обновляет конфигурацию. Скрипт использует такие утилиты, как `curl`, `openssl`, `awk`, `grep` и другие для выполнения этих задач.
 
 ---
 
-### 4. Тестирует TLS handshake latency
+## 2. Установка зависимостей
 
-Измеряет реальную задержку подключения через:
+Перед использованием скрипта необходимо установить несколько зависимостей, чтобы гарантировать корректную работу.
 
-```bash
-openssl s_client
-```
+### 2.1 Обновление репозиториев и установка зависимостей
 
-Если latency > **1200ms**, нода отбрасывается.
+1. Подключитесь к устройству через SSH.
+2. Выполните следующие команды для обновления репозиториев и установки необходимых пакетов:
 
----
-
-### 5. Определяет страну сервера
-
-Через:
-
-```bash
-ip-api.com
-```
-
-Кэшируется локально.
-
----
-
-### 6. Добавляет флаг страны
-
-Пример:
-
-```yaml
-🇳🇱 NL | server.example.com:443 (54 ms)
-```
-
----
-
-### 7. Удаляет дубликаты
-
-Оставляет только лучший сервер по latency.
-
----
-
-### 8. Генерирует proxies.yaml
-
-Полностью совместимый с Mihomo.
-
----
-
-### 9. Проверяет изменения
-
-Если конфиг не изменился:
-
-```bash
-[INFO] no changes
-```
-
-Перезаписи не будет.
-
----
-
-### 10. Reload Mihomo через API
-
-Без полного рестарта процесса.
-
----
-
-# Требования
-
-Поддерживается:
-
-* Keenetic Entware
-* OpenWRT
-* Linux
-* Debian / Ubuntu
-* Alpine
-* любой shell с POSIX sh
-
----
-
-# Необходимые пакеты
-
-Установить:
-
-## Entware / Keenetic
-
-```bash
+```sh
 opkg update
-opkg install curl openssl-util coreutils-timeout
+opkg install curl openssl grep awk vim
+```
+
+### 2.2 Установка **vim** (редактор vi)
+
+Если у вас еще не установлен редактор **vi** (или **vim**), установите его с помощью команды:
+
+```sh
+opkg install vim
 ```
 
 ---
 
-## Debian / Ubuntu
+## 3. Создание и сохранение скрипта
 
-```bash
-sudo apt update
-sudo apt install curl openssl coreutils
+### 3.1 Открытие файла для редактирования
+
+Используйте **vi** для создания и редактирования файла скрипта.
+
+```sh
+vi /opt/bin/update_mihomo.sh
 ```
 
----
+### 3.2 Вставка скрипта
 
-## Alpine
+Нажмите `i` для входа в режим редактирования и вставьте весь код скрипта.
 
-```bash
-apk add curl openssl coreutils
-```
-
----
-
-# Структура файлов
-
-Скрипт использует:
-
-```bash
-/opt/bin/update_mihomo.sh
-```
-
-Конфиг:
-
-```bash
-/opt/etc/mihomo/proxy-providers/proxies.yaml
-```
-
-Кэш GeoIP:
-
-```bash
-/tmp/geo_cache.txt
-```
-
-Временные файлы:
-
-```bash
-/tmp/keys.json
-/tmp/proxies.yaml
-/tmp/latency.txt
-```
-
-Backup:
-
-```bash
-/opt/etc/mihomo/proxy-providers/proxies.yaml.bak
-```
-
----
-
-Вот исправленный блок установки для README — сразу после создания директории идёт **полный способ создания файла со скриптом через heredoc**, чтобы пользователь мог просто вставить одной командой.
-
-Заменяй раздел **"Установка с нуля"** на этот.
-
----
-
-# Установка с нуля
-
-## Шаг 1. Создать директории
-
-```bash
-mkdir -p /opt/bin
-mkdir -p /opt/etc/mihomo/proxy-providers
-```
-
----
-
-## Шаг 2. Создать скрипт
-
-Выполнить команду:
-
-```bash
-cat > /opt/bin/update_mihomo.sh << 'EOF'
+```sh
 #!/bin/sh
 
 URL="https://raw.githubusercontent.com/tiagorrg/vless-checker/main/docs/keys.json"
@@ -249,8 +98,12 @@ mv "$JSONTMP" "$JSON"
 > "$LAT"
 [ ! -f "$CACHE" ] && touch "$CACHE"
 
+# =========================
+# FLAGS
+# =========================
 get_flag() {
   case "$1" in
+         # Europe
     AL) echo "🇦🇱" ;; AD) echo "🇦🇩" ;; AM) echo "🇦🇲" ;;
     AT) echo "🇦🇹" ;; AZ) echo "🇦🇿" ;; BY) echo "🇧🇾" ;;
     BE) echo "🇧🇪" ;; BA) echo "🇧🇦" ;; BG) echo "🇧🇬" ;;
@@ -267,15 +120,53 @@ get_flag() {
     RS) echo "🇷🇸" ;; SK) echo "🇸🇰" ;; SI) echo "🇸🇮" ;;
     ES) echo "🇪🇸" ;; SE) echo "🇸🇪" ;; CH) echo "🇨🇭" ;;
     TR) echo "🇹🇷" ;; UA) echo "🇺🇦" ;; GB) echo "🇬🇧" ;;
-    US) echo "🇺🇸" ;; SG) echo "🇸🇬" ;; TH) echo "🇹🇭" ;;
-    JP) echo "🇯🇵" ;; KR) echo "🇰🇷" ;; HK) echo "🇭🇰" ;;
-    TW) echo "🇹🇼" ;; CA) echo "🇨🇦" ;; AU) echo "🇦🇺" ;;
-    NZ) echo "🇳🇿" ;; BR) echo "🇧🇷" ;; AR) echo "🇦🇷" ;;
-    MX) echo "🇲🇽" ;; ZA) echo "🇿🇦" ;;
-    *) echo "🏳️" ;;
+    VA) echo "🇻🇦" ;;
+
+    # Asia
+    AF) echo "🇦🇫" ;; BH) echo "🇧🇭" ;; BD) echo "🇧🇩" ;;
+    BT) echo "🇧🇹" ;; BN) echo "🇧🇳" ;; KH) echo "🇰🇭" ;;
+    CN) echo "🇨🇳" ;; HK) echo "🇭🇰" ;; IN) echo "🇮🇳" ;;
+    ID) echo "🇮🇩" ;; IR) echo "🇮🇷" ;; IQ) echo "🇮🇶" ;;
+    IL) echo "🇮🇱" ;; JP) echo "🇯🇵" ;; JO) echo "🇯🇴" ;;
+    KZ) echo "🇰🇿" ;; KW) echo "🇰🇼" ;; KG) echo "🇰🇬" ;;
+    LA) echo "🇱🇦" ;; LB) echo "🇱🇧" ;; MY) echo "🇲🇾" ;;
+    MV) echo "🇲🇻" ;; MN) echo "🇲🇳" ;; MM) echo "🇲🇲" ;;
+    NP) echo "🇳🇵" ;; KP) echo "🇰🇵" ;; KR) echo "🇰🇷" ;;
+    OM) echo "🇴🇲" ;; PK) echo "🇵🇰" ;; PH) echo "🇵🇭" ;;
+    QA) echo "🇶🇦" ;; SA) echo "🇸🇦" ;; SG) echo "🇸🇬" ;;
+    LK) echo "🇱🇰" ;; SY) echo "🇸🇾" ;; TW) echo "🇹🇼" ;;
+    TJ) echo "🇹🇯" ;; TH) echo "🇹🇭" ;; TM) echo "🇹🇲" ;;
+    AE) echo "🇦🇪" ;; UZ) echo "🇺🇿" ;; VN) echo "🇻🇳" ;;
+    YE) echo "🇾🇪" ;;
+
+    # North America
+    CA) echo "🇨🇦" ;; CR) echo "🇨🇷" ;; CU) echo "🇨🇺" ;;
+    DO) echo "🇩🇴" ;; SV) echo "🇸🇻" ;; GT) echo "🇬🇹" ;;
+    HT) echo "🇭🇹" ;; HN) echo "🇭🇳" ;; JM) echo "🇯🇲" ;;
+    MX) echo "🇲🇽" ;; NI) echo "🇳🇮" ;; PA) echo "🇵🇦" ;;
+    US) echo "🇺🇸" ;;
+
+    # South America
+    AR) echo "🇦🇷" ;; BO) echo "🇧🇴" ;; BR) echo "🇧🇷" ;;
+    CL) echo "🇨🇱" ;; CO) echo "🇨🇴" ;; EC) echo "🇪🇨" ;;
+    GY) echo "🇬🇾" ;; PY) echo "🇵🇾" ;; PE) echo "🇵🇪" ;;
+    SR) echo "🇸🇷" ;; UY) echo "🇺🇾" ;; VE) echo "🇻🇪" ;;
+
+    # Africa
+    DZ) echo "🇩🇿" ;; AO) echo "🇦🇴" ;; CM) echo "🇨🇲" ;;
+    EG) echo "🇪🇬" ;; ET) echo "🇪🇹" ;; GH) echo "🇬🇭" ;;
+    KE) echo "🇰🇪" ;; LY) echo "🇱🇾" ;; MA) echo "🇲🇦" ;;
+    NG) echo "🇳🇬" ;; ZA) echo "🇿🇦" ;; TN) echo "🇹🇳" ;;
+    UG) echo "🇺🇬" ;; ZW) echo "🇿🇼" ;;
+
+    # Oceania
+    AU) echo "🇦🇺" ;; NZ) echo "🇳🇿" ;; FJ) echo "🇫🇯" ;;
   esac
 }
 
+# =========================
+# GEO CACHE
+# =========================
 get_country() {
   server="$1"
 
@@ -298,6 +189,9 @@ get_country() {
   echo "$cc"
 }
 
+# =========================
+# TLS LATENCY
+# =========================
 get_latency() {
   host="$1"
   port="$2"
@@ -315,6 +209,9 @@ get_latency() {
   echo $(( (end - start) * 1000 ))
 }
 
+# =========================
+# PARSE
+# =========================
 echo "[INFO] parsing nodes..."
 
 grep -oE 'vless://[^"]+' "$JSON" | sort -u | while IFS= read -r line; do
@@ -324,6 +221,7 @@ grep -oE 'vless://[^"]+' "$JSON" | sort -u | while IFS= read -r line; do
   uuid=$(echo "$line" | sed -n 's|vless://\([^@]*\)@.*|\1|p')
   server=$(echo "$line" | sed -n 's|vless://[^@]*@\([^:]*\):.*|\1|p')
   port=$(echo "$line" | sed -n 's|.*:\([0-9]*\).*|\1|p')
+
   pbk=$(echo "$line" | sed -n 's|.*pbk=\([^&]*\).*|\1|p')
   sid=$(echo "$line" | sed -n 's|.*sid=\([^&]*\).*|\1|p')
   sni=$(echo "$line" | sed -n 's|.*sni=\([^&#]*\).*|\1|p')
@@ -338,7 +236,13 @@ grep -oE 'vless://[^"]+' "$JSON" | sort -u | while IFS= read -r line; do
   [ -z "$sid" ] && continue
   [ -z "$sni" ] && continue
 
+  echo "$pbk" | grep -qE "^[A-Za-z0-9_-]{40,80}$" || continue
+  echo "$sid" | grep -qE "^[0-9a-fA-F]{4,}$" || continue
+
+  echo "[TEST] $server:$port"
+
   ms=$(get_latency "$server" "$port" "$sni")
+
   [ "$ms" -gt 1200 ] && continue
 
   cc=$(get_country "$server")
@@ -354,7 +258,9 @@ echo "proxies:" > "$TMP"
 
 while IFS="|" read -r ms cc server port uuid pbk sid sni flag; do
 
-cat >> "$TMP" <<EON
+COUNT=$((COUNT+1))
+
+cat >> "$TMP" <<EOF
 - name: "$flag $cc | $server:$port (${ms} ms)"
   type: vless
   server: $server
@@ -370,364 +276,91 @@ cat >> "$TMP" <<EON
     public-key: "$pbk"
     short-id: "$sid"
 
-EON
+EOF
 
 done < "${LAT}.sorted"
 
+# =========================
+# APPLY + RELOAD
+# =========================
 if grep -q "server:" "$TMP"; then
+
   if ! cmp -s "$TMP" "$OUT"; then
     cp "$OUT" "$OUT.bak" 2>/dev/null
     mv "$TMP" "$OUT"
-    curl -s -X POST http://127.0.0.1:9090/proxies >/dev/null 2>&1
+
     echo "[INFO] YAML UPDATED"
+
+    curl -s -X POST http://127.0.0.1:9090/proxies >/dev/null 2>&1
+
+    echo "[INFO] Mihomo reloaded"
+
   else
     rm -f "$TMP"
     echo "[INFO] no changes"
   fi
+
 else
   rm -f "$TMP"
   echo "[ERROR] invalid YAML blocked"
 fi
-EOF
+
+echo "[INFO] total nodes: $COUNT"
 ```
+
+### 3.3 Сохранение и выход
+
+* После того как вставили код, нажмите `Esc` для выхода из режима редактирования.
+* Введите `:wq` и нажмите `Enter`, чтобы сохранить и выйти.
 
 ---
 
-## Шаг 3. Сделать исполняемым
+## 4. Настройка прав доступа
 
-```bash
+Необходимо дать права на выполнение скрипта:
+
+```sh
 chmod +x /opt/bin/update_mihomo.sh
 ```
 
 ---
 
-## Шаг 4. Проверить
+## 5. Запуск скрипта
 
-```bash
+Для запуска скрипта выполните команду:
+
+```sh
 /opt/bin/update_mihomo.sh
 ```
 
 ---
 
-Ожидаемый вывод:
+## 6. Автоматизация с использованием Cron
 
-```bash
-[INFO] downloading JSON...
-[INFO] parsing nodes...
-[TEST] ...
-[INFO] YAML UPDATED
-[INFO] Mihomo reloaded
-[INFO] total nodes: XX
-```
+Если вы хотите автоматизировать выполнение скрипта, можно добавить его в cron:
 
----
-
-# Настройка Mihomo
-
-Добавить provider в `config.yaml`
-
-```yaml
-proxy-providers:
-  reality-auto:
-    type: file
-    path: /opt/etc/mihomo/proxy-providers/proxies.yaml
-    health-check:
-      enable: true
-      interval: 300
-      url: http://www.msftncsi.com/ncsi.txt
-```
-
----
-
-Добавить в proxy-group:
-
-```yaml
-proxy-groups:
-  - name: AUTO
-    type: url-test
-    use:
-      - reality-auto
-    url: http://www.msftncsi.com/ncsi.txt
-    interval: 300
-```
-
----
-
-# Автоматическое обновление
-
-Открыть cron:
-
-```bash
+```sh
 crontab -e
 ```
 
-Добавить:
+Добавьте строку для выполнения скрипта каждые 30 минут:
 
-## Каждые 30 минут
-
-```cron
+```sh
 */30 * * * * /opt/bin/update_mihomo.sh
 ```
 
 ---
 
-## Каждые 15 минут
+## 7. Проверка обновлений
 
-```cron
-*/15 * * * * /opt/bin/update_mihomo.sh
-```
+После выполнения скрипта проверьте файл конфигурации:
 
----
-
-## Каждые 5 минут
-
-```cron
-*/5 * * * * /opt/bin/update_mihomo.sh
-```
-
----
-
-После:
-
-```bash
-service cron restart
-```
-
-или
-
-```bash
-/opt/etc/init.d/S10cron restart
-```
-
----
-
-# Как работает обновление
-
-Алгоритм:
-
-```text
-download JSON
-   ↓
-parse nodes
-   ↓
-validate
-   ↓
-latency test
-   ↓
-geo lookup
-   ↓
-sort
-   ↓
-generate YAML
-   ↓
-compare with current
-   ↓
-reload Mihomo if changed
-```
-
----
-
-# Защита от битых конфигов
-
-Скрипт НЕ заменит рабочий YAML если:
-
-* JSON пустой
-* парсинг не удался
-* не найдено валидных серверов
-* YAML некорректный
-
-В таком случае:
-
-```bash
-[ERROR] invalid YAML blocked
-```
-
----
-
-# Восстановление
-
-Если нужно откатиться:
-
-```bash
-cp /opt/etc/mihomo/proxy-providers/proxies.yaml.bak \
-   /opt/etc/mihomo/proxy-providers/proxies.yaml
-```
-
-Reload:
-
-```bash
-curl -X POST http://127.0.0.1:9090/proxies
-```
-
----
-
-# Очистка Geo Cache
-
-Если IP-гео изменилась:
-
-```bash
-rm -f /tmp/geo_cache.txt
-```
-
----
-
-# Проверка результата
-
-Посмотреть YAML:
-
-```bash
+```sh
 cat /opt/etc/mihomo/proxy-providers/proxies.yaml
 ```
 
-Пример:
-
-```yaml
-- name: "🇳🇱 NL | server.example.com:443 (42 ms)"
-```
-
 ---
 
-# Частые проблемы
+## 8. Заключение
 
----
-
-## timeout: not found
-
-Установить coreutils:
-
-```bash
-opkg install coreutils-timeout
-```
-
----
-
-## openssl: not found
-
-```bash
-opkg install openssl-util
-```
-
----
-
-## Mihomo не reload
-
-Проверь API:
-
-```bash
-curl http://127.0.0.1:9090/version
-```
-
-Если нет ответа — API выключен.
-
----
-
-## YAML не обновляется
-
-Проверить вручную:
-
-```bash
-/opt/bin/update_mihomo.sh
-```
-
-Если:
-
-```bash
-[INFO] no changes
-```
-
-значит изменений в upstream нет.
-
----
-
-# Производительность
-
-Средние значения:
-
-### 50 нод
-
-~15–25 сек
-
-### 100 нод
-
-~30–50 сек
-
-### 200 нод
-
-~1–2 мин
-
-Зависит от:
-
-* CPU роутера
-* DNS
-* качества сети
-* скорости TLS handshake
-
----
-
-# Безопасность
-
-Скрипт:
-
-* не хранит приватные ключи
-* не выполняет удалённый код
-* не изменяет Mihomo напрямую
-* обновляет YAML только после полной проверки
-
----
-
-# Рекомендуемые cron интервалы
-
-Для дома:
-
-```cron
-*/30 * * * *
-```
-
-Для тестов:
-
-```cron
-*/10 * * * *
-```
-
-Для агрессивного обновления:
-
-```cron
-*/5 * * * *
-```
-
----
-
-# Авторская логика
-
-Особенности реализации:
-
-* smart geo cache
-* latency-first сортировка
-* atomic file replace
-* backup before replace
-* duplicate elimination
-* hot API reload
-
----
-
-# License
-
-MIT
-
----
-
-# Полезно
-
-Ручной запуск:
-
-```bash
-/opt/bin/update_mihomo.sh
-```
-
-Просмотр логов cron:
-
-```bash
-logread | grep update_mihomo
-```
-
----
+Теперь у вас есть полностью настроенный скрипт для автоматического обновления конфигурации прокси-серверов в Mihomo.
