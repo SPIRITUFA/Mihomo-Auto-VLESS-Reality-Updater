@@ -262,7 +262,7 @@ opkg install curl openssl grep gawk vim
      echo "$ms|$cc|$server|$port|$uuid|$pbk|$sid|$sni|$flag" >> "$LAT"
    done
 
-   sort -t"|" -k1,1n -k3,3 "$LAT" | awk -F'|' '!seen[$3]++' > "${LAT}.sorted"
+   sort -t"|" -k1,1n -k3,3 "$LAT" | gawk -F'|' '!seen[$3]++' > "${LAT}.sorted"
 
    echo "proxies:" > "$TMP"
    while IFS="|" read -r ms cc server port uuid pbk sid sni flag; do
