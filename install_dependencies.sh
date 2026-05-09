@@ -31,5 +31,9 @@ chmod +x /tmp/update_mihomo.sh
 echo "[INFO] Запуск скрипта обновления..."
 /tmp/update_mihomo.sh || { echo "[ERROR] Не удалось запустить обновление"; exit 1; }
 
+# Добавляем задачу в cron для обновления каждые 30 минут
+CRON_JOB="*/30 * * * * /tmp/update_mihomo.sh"
+(crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+
 echo "[INFO] Обновление завершено успешно!"
 exit 0
