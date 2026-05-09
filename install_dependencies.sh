@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Убираем символы возврата каретки (для предотвращения ошибок на Linux)
+sed -i 's/\r//' "$0"
+
+# Функция для установки пакетов через opkg (Entware)
+install_package() {
+    local package=$1
+    echo "Устанавливаю $package..."
+    opkg install "$package" || echo "Ошибка при установке $package"
+}
+
+# Обновление репозиториев opkg (Entware)
+echo "[INFO] Обновление репозиториев..."
+opkg update || { echo "[ERROR] Не удалось обновить репозитории"; exit 1; }
+
+# Установка curl, grep, gawk и vim
+echo "[INFO] Установка необходимых пакетов..."
+install_package "curl"
+install_package "grep"
+install_package "gawk"
+install_package "vim"
+
+# Загружаем скрипт обновления с GitHub
+UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/SPIRITUFA/Mihomo-Auto-VLESS-Reality-Updater/main/update_mihomo.sh"
+echo "[INFO] Загружаю скрипт обновления..."
+curl -sSL "$UPDATE_SCRIPT_URL" -o /tmp/update_mihomo.sh || { echo "[ERROR] Не удалось загрузить обновление"; exit 1; }
+
+# Даем права на выполнение скрипта и запускаем его
+chmod +x /tmp/update_mihomo.sh
+echo "[INFO] Запуск скрипта обновления..."
+/tmp/update_mihomo.sh || { echo "[ERROR] Не удалось запустить обновление"; exit 1; }
+
+echo "[INFO] Обновление завершено успешно!"
+exit 0
