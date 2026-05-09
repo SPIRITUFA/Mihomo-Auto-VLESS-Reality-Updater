@@ -81,7 +81,7 @@ opkg update
 3. Установите необходимые пакеты:
 
 ```sh id="5jj0lh"
-opkg install curl openssl grep awk vim
+opkg install curl openssl grep gawk vim
 ```
 
 Эти пакеты обеспечат корректную работу скрипта.
