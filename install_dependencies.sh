@@ -216,3 +216,7 @@ chmod +x /opt/bin/update_mihomo.sh
 
 # Завершение установки
 echo "[INFO] Installation complete! The script is ready to run."
+
+# Автоматический запуск скрипта
+echo "[INFO] Running the update script..."
+/opt/bin/update_mihomo.sh
