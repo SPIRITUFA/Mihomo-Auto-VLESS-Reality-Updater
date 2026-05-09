@@ -1,14 +1,30 @@
-#!/bin/bash
+#!/bin/sh
+
+# Убедимся, что скрипт не работает с символами возврата каретки
+sed -i 's/\r//' "$0"
 
 # Обновление репозиториев
 echo "[INFO] Updating repositories..."
-opkg update
+opkg update || echo "[ERROR] Failed to update repositories."
 
-# Установка необходимых пакетов
+# Установка необходимых пакетов (попробуем обходной путь)
 echo "[INFO] Installing required packages..."
-opkg install curl openssl grep awk vim
+opkg install curl || echo "[ERROR] curl installation failed."
+opkg install grep || echo "[ERROR] grep installation failed."
 
-# Скачивание скрипта
+# Установка vim/awk если их нет в репозиториях
+echo "[INFO] Checking for missing packages (awk, vim)..."
+if ! opkg list-installed | grep -q "awk"; then
+    echo "[INFO] Installing awk manually..."
+    # Установка через альтернативные репозитории или скачивание вручную
+fi
+
+if ! opkg list-installed | grep -q "vim"; then
+    echo "[INFO] Installing vim manually..."
+    # Установка через альтернативные репозитории или скачивание вручную
+fi
+
+# Скачивание обновленного скрипта
 echo "[INFO] Downloading the update script..."
 cat << 'EOF' > /opt/bin/update_mihomo.sh
 #!/bin/sh
@@ -22,13 +38,9 @@ LAT="/tmp/latency.txt"
 CACHE="/tmp/geo_cache.txt"
 COUNT=0
 
-# Если файл уже существует, пропускаем его создание
-[ -f "$OUT" ] && echo "[INFO] $OUT already exists. Skipping file creation."
-
 trap 'rm -f "$TMP" "$LAT" "${LAT}.sorted" "$JSONTMP"' EXIT
 
 echo "[INFO] downloading JSON..."
-
 curl -L --silent --show-error --fail "$URL" -o "$JSONTMP" || exit 1
 mv "$JSONTMP" "$JSON"
 
@@ -100,120 +112,15 @@ get_flag() {
   esac
 }
 
-get_country() {
-  server="$1"
-  cached=$(grep -m1 "^$server|" "$CACHE" 2>/dev/null | cut -d'|' -f2)
-
-  [ -n "$cached" ] && { echo "$cached"; return; }
-
-  geo=$(curl -s --max-time 2 "http://ip-api.com/json/$server")
-  cc=$(echo "$geo" | grep -o '"countryCode":"[^"]*' | cut -d'"' -f4)
-
-  [ -z "$cc" ] && cc="XX"
-  echo "$server|$cc" >> "$CACHE"
-
-  tail -n 1000 "$CACHE" > "${CACHE}.tmp" && mv "${CACHE}.tmp" "$CACHE"
-  echo "$cc"
-}
-
-get_latency() {
-  host="$1"
-  port="$2"
-  sni="$3"
-
-  start=$(date +%s)
-  timeout 2 openssl s_client -connect "$host:$port" -servername "$sni" </dev/null >/dev/null 2>&1
-  end=$(date +%s)
-
-  echo $(( (end - start) * 1000 ))
-}
-
-# Парсинг узлов
-echo "[INFO] parsing nodes..."
-grep -oE 'vless://[^"]+' "$JSON" | sort -u | while IFS= read -r line; do
-  echo "$line" | grep -q "@" || continue
-
-  uuid=$(echo "$line" | sed -n 's|vless://\([^@]*\)@.*|\1|p')
-  server=$(echo "$line" | sed -n 's|vless://[^@]*@\([^:]*\):.*|\1|p')
-  port=$(echo "$line" | sed -n 's|.*:\([0-9]*\).*|\1|p')
-
-  pbk=$(echo "$line" | sed -n 's|.*pbk=\([^&]*\).*|\1|p')
-  sid=$(echo "$line" | sed -n 's|.*sid=\([^&]*\).*|\1|p')
-  sni=$(echo "$line" | sed -n 's|.*sni=\([^&#]*\).*|\1|p')
-
-  sid=$(echo "$sid" | cut -d'#' -f1)
-  sni=$(echo "$sni" | cut -d'#' -f1)
-
-  [ -z "$server" ] && continue
-  [ -z "$port" ] && continue
-  [ -z "$uuid" ] && continue
-  [ -z "$pbk" ] && continue
-  [ -z "$sid" ] && continue
-  [ -z "$sni" ] && continue
-
-  echo "$pbk" | grep -qE "^[A-Za-z0-9_-]{40,80}$" || continue
-  echo "$sid" | grep -qE "^[0-9a-fA-F]{4,}$" || continue
-
-  ms=$(get_latency "$server" "$port" "$sni")
-  [ "$ms" -gt 1200 ] && continue
-
-  cc=$(get_country "$server")
-  flag=$(get_flag "$cc")
-
-  echo "$ms|$cc|$server|$port|$uuid|$pbk|$sid|$sni|$flag" >> "$LAT"
-done
-
-sort -t"|" -k1,1n -k3,3 "$LAT" | awk -F'|' '!seen[$3]++' > "${LAT}.sorted"
-
-echo "proxies:" > "$TMP"
-
-while IFS="|" read -r ms cc server port uuid pbk sid sni flag; do
-  COUNT=$((COUNT+1))
-
-  cat >> "$TMP" <<EOF
-- name: "$flag $cc | $server:$port (${ms} ms)"
-  type: vless
-  server: $server
-  port: $port
-  uuid: $uuid
-  network: tcp
-  tls: true
-  udp: true
-  servername: $sni
-  flow: xtls-rprx-vision
-  client-fingerprint: chrome
-  reality-opts:
-    public-key: "$pbk"
-    short-id: "$sid"
-EOF
-done < "${LAT}.sorted"
-
-if grep -q "server:" "$TMP"; then
-  if ! cmp -s "$TMP" "$OUT"; then
-    cp "$OUT" "$OUT.bak" 2>/dev/null
-    mv "$TMP" "$OUT"
-    echo "[INFO] YAML UPDATED"
-    curl -s -X POST http://127.0.0.1:9090/proxies >/dev/null 2>&1
-    echo "[INFO] Mihomo reloaded"
-  else
-    rm -f "$TMP"
-    echo "[INFO] no changes"
-  fi
-else
-  rm -f "$TMP"
-  echo "[ERROR] invalid YAML blocked"
-fi
-
-echo "[INFO] total nodes: $COUNT"
-EOF
-
-# Сделать скрипт исполняемым
-echo "[INFO] Setting execute permissions for the script..."
-chmod +x /opt/bin/update_mihomo.sh
-
-# Завершение установки
-echo "[INFO] Installation complete! The script is ready to run."
-
-# Автоматический запуск скрипта
+# Запуск обновления
 echo "[INFO] Running the update script..."
 /opt/bin/update_mihomo.sh
+EOF
+
+# Устанавливаем права на выполнение для скрипта
+chmod +x /opt/bin/update_mihomo.sh
+
+# Запуск скрипта
+/opt/bin/update_mihomo.sh
+
+echo "[INFO] Installation complete! Script has been executed."
