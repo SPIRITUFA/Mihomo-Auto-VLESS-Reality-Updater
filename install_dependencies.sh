@@ -3,18 +3,18 @@
 # Убираем символы возврата каретки (для предотвращения ошибок на Linux)
 sed -i 's/\r//' $0
 
-# Функция для установки пакетов
+# Функция для установки пакетов через opkg (Entware)
 install_package() {
     local package=$1
     echo "Устанавливаю $package..."
     opkg install $package || echo "Ошибка при установке $package"
 }
 
-# Обновление репозиториев opkg
+# Обновление репозиториев opkg (Entware)
 echo "[INFO] Обновление репозиториев..."
 opkg update || { echo "[ERROR] Не удалось обновить репозитории"; exit 1; }
 
-# Установка curl, awk, vim и других необходимых пакетов
+# Установка curl, grep, awk и vim
 echo "[INFO] Установка необходимых пакетов..."
 install_package "curl"
 install_package "grep"
