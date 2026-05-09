@@ -2,11 +2,11 @@
 
 # Обновление репозиториев
 echo "[INFO] Updating repositories..."
-opkg update
+opkg update || { echo "[ERROR] Failed to update repositories"; exit 1; }
 
 # Установка необходимых пакетов
 echo "[INFO] Installing required packages..."
-opkg install curl openssl grep awk vim
+opkg install curl openssl grep awk vim || { echo "[ERROR] Failed to install packages"; exit 1; }
 
 # Создание каталога для скрипта
 echo "[INFO] Creating necessary directories..."
@@ -31,8 +31,7 @@ mkdir -p /opt/etc/mihomo/proxy-providers
 trap 'rm -f "$TMP" "$LAT" "${LAT}.sorted" "$JSONTMP"' EXIT
 
 echo "[INFO] downloading JSON..."
-
-curl -L --silent --show-error --fail "$URL" -o "$JSONTMP" || exit 1
+curl -L --silent --show-error --fail "$URL" -o "$JSONTMP" || { echo "[ERROR] Failed to download JSON"; exit 1; }
 mv "$JSONTMP" "$JSON"
 
 [ ! -s "$JSON" ] && echo "[ERROR] empty JSON" && exit 1
