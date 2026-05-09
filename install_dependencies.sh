@@ -1,62 +1,46 @@
-#!/bin/sh
+#!/bin/bash
 
-# Удаляем символы возврата каретки
-sed -i 's/\r//' "$0"
+# Убираем символы возврата каретки (для предотвращения ошибок на Linux)
+sed -i 's/\r//' $0
 
-# Обновление репозиториев
-echo "[INFO] Updating repositories..."
-opkg update || echo "[ERROR] Failed to update repositories."
+# Функция для установки пакетов
+install_package() {
+    local package=$1
+    echo "Устанавливаю $package..."
+    opkg install $package || echo "Ошибка при установке $package"
+}
 
-# Установка необходимых пакетов
-echo "[INFO] Installing required packages..."
-opkg install curl || echo "[ERROR] curl installation failed."
-opkg install grep || echo "[ERROR] grep installation failed."
+# Обновление репозиториев opkg
+echo "[INFO] Обновление репозиториев..."
+opkg update || { echo "[ERROR] Не удалось обновить репозитории"; exit 1; }
 
-# Проверка наличия awk и vim, установка их вручную, если они отсутствуют
-echo "[INFO] Checking for missing packages (awk, vim)..."
-if ! opkg list-installed | grep -q "awk"; then
-    echo "[INFO] Installing awk manually..."
-    # Если пакеты не установлены, установите их вручную или через другие репозитории
+# Установка curl, awk, vim и других необходимых пакетов
+echo "[INFO] Установка необходимых пакетов..."
+install_package "curl"
+install_package "grep"
+install_package "awk"
+install_package "vim"
+
+# Проверка наличия необходимых файлов
+echo "[INFO] Проверка наличия необходимых файлов..."
+PROXY_FILE="/opt/etc/mihomo/proxy-providers/proxies.yaml"
+if [ ! -f "$PROXY_FILE" ]; then
+    echo "[INFO] Файл proxies.yaml не найден, создаю..."
+    # Создание файла proxies.yaml, если его нет
+    touch "$PROXY_FILE"
+else
+    echo "[INFO] Файл proxies.yaml уже существует, пропускаем создание."
 fi
 
-if ! opkg list-installed | grep -q "vim"; then
-    echo "[INFO] Installing vim manually..."
-    # Если пакеты не установлены, установите их вручную или через другие репозитории
-fi
+# Загружаем обновление скрипта, если нужно
+UPDATE_SCRIPT="https://raw.githubusercontent.com/SPIRITUFA/Mihomo-Auto-VLESS-Reality-Updater/main/update_script.sh"
+echo "[INFO] Загружаю скрипт обновления..."
+curl -sSL "$UPDATE_SCRIPT" -o /tmp/update_script.sh || { echo "[ERROR] Не удалось загрузить обновление"; exit 1; }
 
-# Скачивание обновленного скрипта
-echo "[INFO] Downloading the update script..."
-cat << 'EOF' > /opt/bin/update_mihomo.sh
-#!/bin/sh
-URL="https://raw.githubusercontent.com/SPIRITUFA/Mihomo-Auto-VLESS-Reality-Updater/main/update_mihomo.sh"
-OUT="/opt/etc/mihomo/proxy-providers/proxies.yaml"
-TMP="/tmp/proxies.yaml"
-JSON="/tmp/keys.json"
-JSONTMP="/tmp/keys.json.tmp"
-LAT="/tmp/latency.txt"
-CACHE="/tmp/geo_cache.txt"
-COUNT=0
+# Даем права на выполнение скрипта и запускаем его
+chmod +x /tmp/update_script.sh
+echo "[INFO] Запуск скрипта обновления..."
+/tmp/update_script.sh || { echo "[ERROR] Не удалось запустить обновление"; exit 1; }
 
-trap 'rm -f "$TMP" "$LAT" "${LAT}.sorted" "$JSONTMP"' EXIT
-
-echo "[INFO] downloading JSON..."
-curl -L --silent --show-error --fail "$URL" -o "$JSONTMP" || exit 1
-mv "$JSONTMP" "$JSON"
-
-[ ! -s "$JSON" ] && echo "[ERROR] empty JSON" && exit 1
-
-> "$LAT"
-[ ! -f "$CACHE" ] && touch "$CACHE"
-
-# Запуск обновления
-echo "[INFO] Running the update script..."
-/opt/bin/update_mihomo.sh
-EOF
-
-# Устанавливаем права на выполнение для скрипта
-chmod +x /opt/bin/update_mihomo.sh
-
-# Запуск скрипта
-/opt/bin/update_mihomo.sh
-
-echo "[INFO] Installation complete! Script has been executed."
+echo "[INFO] Установка завершена успешно!"
+exit 0
