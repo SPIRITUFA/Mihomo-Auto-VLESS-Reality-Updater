@@ -54,21 +54,5 @@ else
     echo "[INFO] Задача cron добавлена!"
 fi
 
-# =========================
-# Добавление подписки в config.yaml
-# =========================
-CONFIG_FILE="/opt/etc/mihomo/config.yaml"
-PROXY_FILE="/opt/etc/mihomo/proxy-providers/proxies.yaml"
-
-# Создаем бекап файла config.yaml перед его изменением
-BACKUP_CONFIG_FILE="/opt/etc/mihomo/config.yaml.bak"
-echo "[INFO] Создание бекапа файла config.yaml..."
-if cp "$CONFIG_FILE" "$BACKUP_CONFIG_FILE"; then
-    echo "[INFO] Бекап создан успешно."
-else
-    echo "[ERROR] Не удалось создать бекап файла $CONFIG_FILE"
-    exit 1
-fi
-
 echo "[INFO] Обновление завершено успешно!"
 exit 0
