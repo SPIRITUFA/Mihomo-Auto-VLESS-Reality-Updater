@@ -108,5 +108,17 @@ proxy-groups:
 EOF
 fi
 
+# =========================
+# Добавление 🚀Auto-Best в блоки с DIRECT
+# =========================
+echo "[INFO] Добавление 🚀Auto-Best в блоки с DIRECT..."
+
+# Для каждого блока, который содержит 'DIRECT', добавляем '🚀Auto-Best' в секцию 'proxies'
+gawk '
+  /proxies:/ { in_proxies = 1 }
+  in_proxies && /DIRECT/ { print "      - 🚀Auto-Best" }
+  { print }
+' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+
 echo "[INFO] Обновление завершено успешно!"
 exit 0
