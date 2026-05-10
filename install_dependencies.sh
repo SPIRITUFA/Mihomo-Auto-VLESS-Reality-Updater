@@ -31,61 +31,38 @@ chmod +x /tmp/update_mihomo.sh
 echo "[INFO] Запуск скрипта обновления..."
 /tmp/update_mihomo.sh || { echo "[ERROR] Не удалось запустить обновление"; exit 1; }
 
-# Добавляем задачу в cron для обновления каждые 30 минут
-CRON_JOB="*/30 * * * * /tmp/update_mihomo.sh"
-(crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-
 # =========================
-# Добавление подписки в config.yaml
+# Добавление задачи в cron
 # =========================
-CONFIG_FILE="/opt/etc/mihomo/config.yaml"
-PROXY_FILE="/opt/etc/mihomo/proxy-providers/proxies.yaml"
+echo "[INFO] Проверка cron..."
 
-# Создаем бекап файла config.yaml перед его изменением
-BACKUP_CONFIG_FILE="/opt/etc/mihomo/config.yaml.bak"
-echo "[INFO] Создание бекапа файла config.yaml..."
-cp "$CONFIG_FILE" "$BACKUP_CONFIG_FILE" || { echo "[ERROR] Не удалось создать бекап файла $CONFIG_FILE"; exit 1; }
-
-# Получаем список существующих подписок из файла
-EXISTING_SUBSCRIPTIONS=$(grep -oP 'subscription-\d+' "$CONFIG_FILE" || echo "")
-
-# Нахождение максимального номера подписки
-MAX_SUBSCRIPTION=$(echo "$EXISTING_SUBSCRIPTIONS" | sed -E 's/[^0-9]//g' | sort -n | tail -n 1)
-NEXT_SUBSCRIPTION=$((MAX_SUBSCRIPTION + 1))
-
-# Строки для добавления новой подписки
-NEW_SUBSCRIPTION="  - subscription-$NEXT_SUBSCRIPTION"
-
-# Проверяем, существует ли блок proxy-groups
-if grep -q "proxy-groups:" "$CONFIG_FILE"; then
-    echo "[INFO] Добавление новой подписки в proxy-groups..."
-    
-    # Проверяем наличие подписки в блоке use
-    if ! grep -q "subscription-$NEXT_SUBSCRIPTION" "$CONFIG_FILE"; then
-        # Добавляем новую подписку в блок use, если ее нет
-        sed -i "/proxy-groups:/,/proxies:/s/\(.*use:\)/\1\n$NEW_SUBSCRIPTION/" "$CONFIG_FILE" || { echo "[ERROR] Не удалось добавить подписку в proxy-groups"; exit 1; }
-    else
-        echo "[INFO] Подписка subscription-$NEXT_SUBSCRIPTION уже существует в proxy-groups."
-    fi
-    
+# Проверяем, установлен ли cron
+if ! command -v crond &> /dev/null; then
+    echo "[INFO] Cron не установлен, устанавливаю..."
+    opkg install cron || { echo "[ERROR] Не удалось установить cron"; exit 1; }
+    /etc/init.d/cron start || { echo "[ERROR] Не удалось запустить cron"; exit 1; }
 else
-    echo "[INFO] Блок proxy-groups не найден, добавляю новый блок..."
-    
-    # Если блок proxy-groups не существует, добавляем его с единственной подпиской
-    cat >> "$CONFIG_FILE" <<EOF
-
-proxy-groups:
-  - name: '🚀Auto-Best'
-    type: url-test
-    use:
-      - subscription-$NEXT_SUBSCRIPTION
-    exclude-filter: "(?i)RU|Осталось трафика"
-    url: https://www.gstatic.com/generate_204
-    interval: 300
-    tolerance: 50
-
-EOF
+    echo "[INFO] Cron уже установлен"
 fi
 
-echo "[INFO] Обновление завершено успешно!"
+# Проверяем, есть ли уже задачи в cron
+EXISTING_CRON_JOBS=$(crontab -l 2>/dev/null)
+
+# Если задач в cron нет, добавляем первую задачу
+if [ -z "$EXISTING_CRON_JOBS" ]; then
+    echo "[INFO] Задачи в cron не найдены, добавляю задачу..."
+    CRON_JOB="*/30 * * * * /tmp/update_mihomo.sh"
+    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+else
+    echo "[INFO] Задачи в cron уже существуют. Добавляю задачу следующей."
+
+    # Считаем, сколько задач в cron, чтобы добавить задачу следующей
+    JOB_COUNT=$(echo "$EXISTING_CRON_JOBS" | wc -l)
+    
+    # Если задач несколько, добавляем новую задачу после существующих
+    CRON_JOB="*/30 * * * * /tmp/update_mihomo.sh"
+    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+fi
+
+echo "[INFO] Задача cron добавлена!"
 exit 0
