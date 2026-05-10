@@ -34,7 +34,6 @@ echo "[INFO] Запуск скрипта обновления..."
 # =========================
 # Добавление задачи в cron
 # =========================
-echo "[INFO] Проверка cron..."
 
 # Проверяем, установлен ли cron
 if ! command -v crond &> /dev/null; then
@@ -65,4 +64,58 @@ else
 fi
 
 echo "[INFO] Задача cron добавлена!"
+
+# =========================
+# Добавление подписки в config.yaml
+# =========================
+CONFIG_FILE="/opt/etc/mihomo/config.yaml"
+PROXY_FILE="/opt/etc/mihomo/proxy-providers/proxies.yaml"
+
+# Создаем бекап файла config.yaml перед его изменением
+BACKUP_CONFIG_FILE="/opt/etc/mihomo/config.yaml.bak"
+echo "[INFO] Создание бекапа файла config.yaml..."
+cp "$CONFIG_FILE" "$BACKUP_CONFIG_FILE" || { echo "[ERROR] Не удалось создать бекап файла $CONFIG_FILE"; exit 1; }
+
+# Получаем список существующих подписок из файла
+EXISTING_SUBSCRIPTIONS=$(grep -oP 'subscription-\d+' "$CONFIG_FILE" || echo "")
+
+# Нахождение максимального номера подписки
+MAX_SUBSCRIPTION=$(echo "$EXISTING_SUBSCRIPTIONS" | sed -E 's/[^0-9]//g' | sort -n | tail -n 1)
+NEXT_SUBSCRIPTION=$((MAX_SUBSCRIPTION + 1))
+
+# Строки для добавления новой подписки
+NEW_SUBSCRIPTION="  - subscription-$NEXT_SUBSCRIPTION"
+
+# Проверяем, существует ли блок proxy-groups
+if grep -q "proxy-groups:" "$CONFIG_FILE"; then
+    echo "[INFO] Добавление новой подписки в proxy-groups..."
+    
+    # Проверяем наличие подписки в блоке use
+    if ! grep -q "subscription-$NEXT_SUBSCRIPTION" "$CONFIG_FILE"; then
+        # Добавляем новую подписку в блок use, если ее нет
+        sed -i "/proxy-groups:/,/proxies:/s/\(.*use:\)/\1\n$NEW_SUBSCRIPTION/" "$CONFIG_FILE" || { echo "[ERROR] Не удалось добавить подписку в proxy-groups"; exit 1; }
+    else
+        echo "[INFO] Подписка subscription-$NEXT_SUBSCRIPTION уже существует в proxy-groups."
+    fi
+    
+else
+    echo "[INFO] Блок proxy-groups не найден, добавляю новый блок..."
+    
+    # Если блок proxy-groups не существует, добавляем его с единственной подпиской
+    cat >> "$CONFIG_FILE" <<EOF
+
+proxy-groups:
+  - name: '🚀Auto-Best'
+    type: url-test
+    use:
+      - subscription-$NEXT_SUBSCRIPTION
+    exclude-filter: "(?i)RU|Осталось трафика"
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+
+EOF
+fi
+
+echo "[INFO] Обновление завершено успешно!"
 exit 0
