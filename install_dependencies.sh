@@ -164,11 +164,11 @@ gawk '
 }
 {
     if (global_found && proxies_found) {
-        # Проверяем, существует ли уже - 🚀Auto-Best
+        # Если - 🚀Auto-Best ещё нет, добавляем его первым
         if ($0 ~ /- 🚀Auto-Best/) {
             skip_block = 1
         } else {
-            # Добавляем - 🚀Auto-Best
+            # Добавляем - 🚀Auto-Best первым в список proxies
             print "      - 🚀Auto-Best"
         }
     }
