@@ -115,7 +115,7 @@ fi
 # Читаем и обновляем блоки с proxies
 echo "[INFO] Обновление блоков с proxies..."
 
-# Обрабатываем каждый блок с использованием gawk вместо awk
+# Обрабатываем каждый блок с использованием gawk
 gawk '
 /name: / { 
     block_name = $2
@@ -129,7 +129,7 @@ gawk '
         if ($0 ~ /- 🚀Auto-Best/) {
             skip_block = 1
         } else {
-            # Добавляем - 🚀Auto-Best после - DIRECT
+            # Добавляем - 🚀Auto-Best строго после - DIRECT
             print "      - 🚀Auto-Best"
         }
     }
