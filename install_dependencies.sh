@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Убираем символы возврата каретки (для предотвращения ошибок на Linux)
-sed -i 's/\r//' "$0"
-
 # Функция для установки пакетов через opkg (Entware)
 install_package() {
     local package=$1
@@ -39,6 +36,7 @@ echo "[INFO] Запуск скрипта обновления..."
 if ! command -v crond &> /dev/null; then
     echo "[INFO] Cron не установлен, устанавливаю..."
     opkg install cron || { echo "[ERROR] Не удалось установить cron"; exit 1; }
+    /etc/init.d/cron enable || { echo "[ERROR] Не удалось включить cron"; exit 1; }
     /etc/init.d/cron start || { echo "[ERROR] Не удалось запустить cron"; exit 1; }
 else
     echo "[INFO] Cron уже установлен"
@@ -65,9 +63,12 @@ PROXY_FILE="/opt/etc/mihomo/proxy-providers/proxies.yaml"
 # Создаем бекап файла config.yaml перед его изменением
 BACKUP_CONFIG_FILE="/opt/etc/mihomo/config.yaml.bak"
 echo "[INFO] Создание бекапа файла config.yaml..."
-cp "$CONFIG_FILE" "$BACKUP_CONFIG_FILE" || { echo "[ERROR] Не удалось создать бекап файла $CONFIG_FILE"; exit 1; }
-
-' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+if cp "$CONFIG_FILE" "$BACKUP_CONFIG_FILE"; then
+    echo "[INFO] Бекап создан успешно."
+else
+    echo "[ERROR] Не удалось создать бекап файла $CONFIG_FILE"
+    exit 1
+fi
 
 echo "[INFO] Обновление завершено успешно!"
 exit 0
