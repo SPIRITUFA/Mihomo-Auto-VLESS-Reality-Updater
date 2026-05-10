@@ -60,35 +60,32 @@ NEW_SUBSCRIPTION="  - subscription-$NEXT_SUBSCRIPTION"
 if grep -q "proxy-groups:" "$CONFIG_FILE"; then
     echo "[INFO] Добавление новой подписки в proxy-groups..."
     
-    # Если блок уже существует, вставляем новую подписку в use:
-    sed -i "/proxy-groups:/,/proxies:/s/^\(.*use:\)/\1\n$NEW_SUBSCRIPTION/" "$CONFIG_FILE" || { echo "[ERROR] Не удалось добавить подписку в proxy-groups"; exit 1; }
-
+    # Проверяем наличие подписки в блоке use
+    if ! grep -q "subscription-$NEXT_SUBSCRIPTION" "$CONFIG_FILE"; then
+        # Добавляем новую подписку в блок use, если ее нет
+        sed -i "/proxy-groups:/,/proxies:/s/\(.*use:\)/\1\n$NEW_SUBSCRIPTION/" "$CONFIG_FILE" || { echo "[ERROR] Не удалось добавить подписку в proxy-groups"; exit 1; }
+    else
+        echo "[INFO] Подписка subscription-$NEXT_SUBSCRIPTION уже существует в proxy-groups."
+    fi
+    
 else
     echo "[INFO] Блок proxy-groups не найден, добавляю новый блок..."
     
-    # Если блок proxy-groups не существует, добавляем его вместе с новой подпиской
+    # Если блок proxy-groups не существует, добавляем его с единственной подпиской
     cat >> "$CONFIG_FILE" <<EOF
 
 proxy-groups:
   - name: '🚀Auto-Best'
     type: url-test
     use:
-      - subscription
-      - subscription-2
-      - subscription-3
-      - subscription-4
-      - subscription-5
+      - subscription-$NEXT_SUBSCRIPTION
     exclude-filter: "(?i)RU|Осталось трафика"
     url: https://www.gstatic.com/generate_204
     interval: 300
     tolerance: 50
 
 EOF
-
-    # Добавляем нашу новую подписку в use
-    sed -i "/proxy-groups:/,/use:/s/^\(.*use:\)/\1\n$NEW_SUBSCRIPTION/" "$CONFIG_FILE" || { echo "[ERROR] Не удалось добавить подписку в новый блок proxy-groups"; exit 1; }
 fi
 
-# Добавление новой подписки в блок proxy-groups
 echo "[INFO] Обновление завершено успешно!"
 exit 0
