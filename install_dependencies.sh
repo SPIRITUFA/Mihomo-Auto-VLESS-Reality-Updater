@@ -115,10 +115,12 @@ echo "[INFO] Добавление 🚀Auto-Best в блоки с DIRECT..."
 
 # Для каждого блока, который содержит 'DIRECT', добавляем '🚀Auto-Best' в секцию 'proxies', если такого еще нет
 gawk '
-  /proxies:/ { 
+  /proxies:/ {
     in_proxies = 1
     proxies_found = 0
   }
+  # Если строка закомментирована, пропускаем
+  /#proxies:/ { in_proxies = 0 }
   in_proxies && /DIRECT/ && !proxies_found {
     print "      - 🚀Auto-Best"
     proxies_found = 1
