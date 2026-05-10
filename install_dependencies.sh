@@ -113,10 +113,16 @@ fi
 # =========================
 echo "[INFO] Добавление 🚀Auto-Best в блоки с DIRECT..."
 
-# Для каждого блока, который содержит 'DIRECT', добавляем '🚀Auto-Best' в секцию 'proxies'
+# Для каждого блока, который содержит 'DIRECT', добавляем '🚀Auto-Best' в секцию 'proxies', если такого еще нет
 gawk '
-  /proxies:/ { in_proxies = 1 }
-  in_proxies && /DIRECT/ { print "      - 🚀Auto-Best" }
+  /proxies:/ { 
+    in_proxies = 1
+    proxies_found = 0
+  }
+  in_proxies && /DIRECT/ && !proxies_found {
+    print "      - 🚀Auto-Best"
+    proxies_found = 1
+  }
   { print }
 ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
 
