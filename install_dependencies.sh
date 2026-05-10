@@ -21,15 +21,15 @@ install_package "grep"
 install_package "gawk"
 install_package "vim"
 
-# Загружаем скрипт обновления с GitHub
+# Загружаем скрипт обновления с GitHub и сохраняем его в /opt/bin/
 UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/SPIRITUFA/Mihomo-Auto-VLESS-Reality-Updater/main/update_mihomo.sh"
 echo "[INFO] Загружаю скрипт обновления..."
-curl -sSL "$UPDATE_SCRIPT_URL" -o /tmp/update_mihomo.sh || { echo "[ERROR] Не удалось загрузить обновление"; exit 1; }
+curl -sSL "$UPDATE_SCRIPT_URL" -o /opt/bin/update_mihomo.sh || { echo "[ERROR] Не удалось загрузить обновление"; exit 1; }
 
-# Даем права на выполнение скрипта и запускаем его
-chmod +x /tmp/update_mihomo.sh
+# Даем права на выполнение скрипта
+chmod +x /opt/bin/update_mihomo.sh
 echo "[INFO] Запуск скрипта обновления..."
-/tmp/update_mihomo.sh || { echo "[ERROR] Не удалось запустить обновление"; exit 1; }
+/opt/bin/update_mihomo.sh || { echo "[ERROR] Не удалось запустить обновление"; exit 1; }
 
 # =========================
 # Добавление задачи в cron
@@ -44,26 +44,17 @@ else
     echo "[INFO] Cron уже установлен"
 fi
 
-# Проверяем, есть ли уже задачи в cron
+# Проверяем, есть ли уже задача в cron для обновления
 EXISTING_CRON_JOBS=$(crontab -l 2>/dev/null)
+CRON_JOB="*/30 * * * * /opt/bin/update_mihomo.sh"
 
-# Если задач в cron нет, добавляем первую задачу
-if [ -z "$EXISTING_CRON_JOBS" ]; then
-    echo "[INFO] Задачи в cron не найдены, добавляю задачу..."
-    CRON_JOB="*/30 * * * * /tmp/update_mihomo.sh"
-    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+if echo "$EXISTING_CRON_JOBS" | grep -q "$CRON_JOB"; then
+    echo "[INFO] Задача cron для обновления уже существует, пропускаем установку."
 else
-    echo "[INFO] Задачи в cron уже существуют. Добавляю задачу следующей."
-
-    # Считаем, сколько задач в cron, чтобы добавить задачу следующей
-    JOB_COUNT=$(echo "$EXISTING_CRON_JOBS" | wc -l)
-    
-    # Если задач несколько, добавляем новую задачу после существующих
-    CRON_JOB="*/30 * * * * /tmp/update_mihomo.sh"
+    echo "[INFO] Задачи cron для обновления не найдены, добавляю задачу..."
     (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+    echo "[INFO] Задача cron добавлена!"
 fi
-
-echo "[INFO] Задача cron добавлена!"
 
 # =========================
 # Добавление подписки в config.yaml
