@@ -46,29 +46,49 @@ BACKUP_CONFIG_FILE="/opt/etc/mihomo/config.yaml.bak"
 echo "[INFO] Создание бекапа файла config.yaml..."
 cp "$CONFIG_FILE" "$BACKUP_CONFIG_FILE" || { echo "[ERROR] Не удалось создать бекап файла $CONFIG_FILE"; exit 1; }
 
-# Проверка на существующие подписки в use
-EXISTING_SUBSCRIPTION=$(grep -oP 'subscription-\d+' "$CONFIG_FILE")
+# Получаем список существующих подписок из файла
+EXISTING_SUBSCRIPTIONS=$(grep -oP 'subscription-\d+' "$CONFIG_FILE" || echo "")
 
 # Нахождение максимального номера подписки
-MAX_SUBSCRIPTION=$(echo "$EXISTING_SUBSCRIPTION" | sed -E 's/[^0-9]//g' | sort -n | tail -n 1)
+MAX_SUBSCRIPTION=$(echo "$EXISTING_SUBSCRIPTIONS" | sed -E 's/[^0-9]//g' | sort -n | tail -n 1)
 NEXT_SUBSCRIPTION=$((MAX_SUBSCRIPTION + 1))
 
-# Строки, которые нужно добавить
-SUBSCRIPTION_CONTENT="
-  - subscription-$NEXT_SUBSCRIPTION
-"
+# Строки для добавления новой подписки
+NEW_SUBSCRIPTION="  - subscription-$NEXT_SUBSCRIPTION"
 
-# Проверка на существование строки 'use:' после 'proxy-groups:'
+# Проверяем, существует ли блок proxy-groups
 if grep -q "proxy-groups:" "$CONFIG_FILE"; then
     echo "[INFO] Добавление новой подписки в proxy-groups..."
+    
+    # Если блок уже существует, вставляем новую подписку в use:
+    sed -i "/proxy-groups:/,/proxies:/s/^\(.*use:\)/\1\n$NEW_SUBSCRIPTION/" "$CONFIG_FILE" || { echo "[ERROR] Не удалось добавить подписку в proxy-groups"; exit 1; }
 
-    # Если строка use существует, то добавляем подписку
-    sed -i "/proxy-groups:/,/use:/s/^\(.*use:\)/\1\n$SUBSCRIPTION_CONTENT/" "$CONFIG_FILE" || { echo "[ERROR] Не удалось добавить подписку в $CONFIG_FILE"; exit 1; }
 else
-    echo "[ERROR] Не найден раздел proxy-groups в $CONFIG_FILE"
-    exit 1
+    echo "[INFO] Блок proxy-groups не найден, добавляю новый блок..."
+    
+    # Если блок proxy-groups не существует, добавляем его вместе с новой подпиской
+    cat >> "$CONFIG_FILE" <<EOF
+
+proxy-groups:
+  - name: '🚀Auto-Best'
+    type: url-test
+    use:
+      - subscription
+      - subscription-2
+      - subscription-3
+      - subscription-4
+      - subscription-5
+    exclude-filter: "(?i)RU|Осталось трафика"
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    tolerance: 50
+
+EOF
+
+    # Добавляем нашу новую подписку в use
+    sed -i "/proxy-groups:/,/use:/s/^\(.*use:\)/\1\n$NEW_SUBSCRIPTION/" "$CONFIG_FILE" || { echo "[ERROR] Не удалось добавить подписку в новый блок proxy-groups"; exit 1; }
 fi
 
-# Добавление подписки в config.yaml
+# Добавление новой подписки в блок proxy-groups
 echo "[INFO] Обновление завершено успешно!"
 exit 0
