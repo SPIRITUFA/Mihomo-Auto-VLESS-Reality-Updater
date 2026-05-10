@@ -150,5 +150,34 @@ awk '
 }
 ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
 
+# =========================
+# Добавление - 🚀Auto-Best в блок GLOBAL
+# =========================
+
+# Проверяем, если блок GLOBAL содержит proxies
+awk '
+/name: "GLOBAL"/ {
+    global_found = 1
+}
+/proxies:/ {
+    proxies_found = 1
+}
+{
+    if (global_found && proxies_found) {
+        # Проверяем, существует ли уже - 🚀Auto-Best
+        if ($0 ~ /- 🚀Auto-Best/) {
+            skip_block = 1
+        } else {
+            # Добавляем - 🚀Auto-Best
+            print "      - 🚀Auto-Best"
+        }
+    }
+    if (!skip_block) {
+        print $0
+    }
+    skip_block = 0
+}
+' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+
 echo "[INFO] Обновление завершено успешно!"
 exit 0
