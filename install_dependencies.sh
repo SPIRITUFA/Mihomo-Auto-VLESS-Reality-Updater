@@ -35,5 +35,35 @@ echo "[INFO] Запуск скрипта обновления..."
 CRON_JOB="*/30 * * * * /tmp/update_mihomo.sh"
 (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
 
+# =========================
+# Добавление подписки в config.yaml
+# =========================
+CONFIG_FILE="/opt/etc/mihomo/config.yaml"
+PROXY_FILE="/opt/etc/mihomo/proxy-providers/proxies.yaml"
+
+# Проверка на существующие подписки в use
+EXISTING_SUBSCRIPTION=$(grep -oP 'subscription-\d+' "$CONFIG_FILE")
+
+# Нахождение максимального номера подписки
+MAX_SUBSCRIPTION=$(echo "$EXISTING_SUBSCRIPTION" | sed -E 's/[^0-9]//g' | sort -n | tail -n 1)
+NEXT_SUBSCRIPTION=$((MAX_SUBSCRIPTION + 1))
+
+# Строки, которые нужно добавить
+SUBSCRIPTION_CONTENT="
+  - subscription-$NEXT_SUBSCRIPTION
+"
+
+# Проверка на существование строки 'use:' после 'proxy-groups:'
+if grep -q "proxy-groups:" "$CONFIG_FILE"; then
+    echo "[INFO] Добавление новой подписки в proxy-groups..."
+
+    # Если строка use существует, то добавляем подписку
+    sed -i "/proxy-groups:/,/use:/s/^\(.*use:\)/\1\n$SUBSCRIPTION_CONTENT/" "$CONFIG_FILE" || { echo "[ERROR] Не удалось добавить подписку в $CONFIG_FILE"; exit 1; }
+else
+    echo "[ERROR] Не найден раздел proxy-groups в $CONFIG_FILE"
+    exit 1
+fi
+
+# Добавление подписки в config.yaml
 echo "[INFO] Обновление завершено успешно!"
 exit 0
