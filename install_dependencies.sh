@@ -109,23 +109,45 @@ EOF
 fi
 
 # =========================
-# Добавление 🚀Auto-Best в блоки с DIRECT
+# Обновление блоков с proxies
 # =========================
-echo "[INFO] Добавление 🚀Auto-Best в блоки с DIRECT..."
 
-# Для каждого блока, который содержит 'DIRECT', добавляем '🚀Auto-Best' в секцию 'proxies', если такого еще нет
-gawk '
-  /proxies:/ {
-    in_proxies = 1
-    proxies_found = 0
-  }
-  # Если строка закомментирована, пропускаем
-  /#proxies:/ { in_proxies = 0 }
-  in_proxies && /DIRECT/ && !proxies_found {
-    print "      - 🚀Auto-Best"
+# Читаем и обновляем блоки с proxies
+echo "[INFO] Обновление блоков с proxies..."
+
+# Обрабатываем каждый блок
+awk '
+/name: / { 
+    block_name = $2
+}
+/proxies:/ {
     proxies_found = 1
-  }
-  { print }
+}
+/- DIRECT/ {
+    if (proxies_found) {
+        # Проверяем, существует ли уже - 🚀Auto-Best
+        if ($0 ~ /- 🚀Auto-Best/) {
+            skip_block = 1
+        } else {
+            # Добавляем - 🚀Auto-Best после - DIRECT
+            print "      - 🚀Auto-Best"
+        }
+    }
+}
+# Пропускаем блок, если был найден - REJECT перед - DIRECT
+/REJECT/ && /DIRECT/ {
+    skip_block = 1
+}
+# Пропускаем закомментированные строки
+/^#/ { skip_block = 1 }
+
+# Печатаем все строки, кроме тех, которые нужно пропустить
+{
+    if (!skip_block) {
+        print $0
+    }
+    skip_block = 0
+}
 ' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
 
 echo "[INFO] Обновление завершено успешно!"
