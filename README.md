@@ -34,7 +34,7 @@
 ### 📥 Выполнение команды для автоматической установки:
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/SPIRITUFA/Mihomo-Auto-VLESS-Reality-Updater/main/install_dependencies.sh | /opt/bin/bash
+curl -sSL https://raw.githubusercontent.com/SPIRITUFA/Mihomo-Auto-VLESS-Reality-Updater/main/install_dependencies.sh | sh
 ```
 
 ### 🛠️ Что делает эта команда:
