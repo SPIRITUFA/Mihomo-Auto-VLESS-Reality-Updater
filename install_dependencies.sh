@@ -1,58 +1,138 @@
 #!/bin/bash
 
-# Функция для установки пакетов через opkg (Entware)
+# =========================================
+# Установка зависимостей и updater Mihomo
+# =========================================
+
+# Функция установки пакетов
 install_package() {
-    local package=$1
-    echo "Устанавливаю $package..."
-    opkg install "$package" || echo "Ошибка при установке $package"
+    local package="$1"
+
+    echo "[INFO] Устанавливаю $package..."
+
+    opkg install "$package" || {
+        echo "[ERROR] Ошибка установки $package"
+        return 1
+    }
 }
 
-# Обновление репозиториев opkg (Entware)
-echo "[INFO] Обновление репозиториев..."
-opkg update || { echo "[ERROR] Не удалось обновить репозитории"; exit 1; }
+# Проверка Entware
+if [ ! -x /opt/bin/opkg ]; then
+    echo "[ERROR] Entware не установлен!"
+    exit 1
+fi
 
-# Установка curl, grep, gawk и vim
+# Добавляем Entware в PATH
+export PATH=/opt/bin:/opt/sbin:$PATH
+
+# =========================================
+# Обновление репозиториев
+# =========================================
+
+echo "[INFO] Обновление репозиториев Entware..."
+
+opkg update || {
+    echo "[ERROR] Не удалось обновить репозитории"
+    exit 1
+}
+
+# =========================================
+# Установка зависимостей
+# =========================================
+
 echo "[INFO] Установка необходимых пакетов..."
+
 install_package "curl"
 install_package "grep"
 install_package "gawk"
 install_package "vim"
+install_package "cron"
 
-# Загружаем скрипт обновления с GitHub и сохраняем его в /opt/bin/
+# =========================================
+# Загрузка update_mihomo.sh
+# =========================================
+
 UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/SPIRITUFA/Mihomo-Auto-VLESS-Reality-Updater/main/update_mihomo.sh"
-echo "[INFO] Загружаю скрипт обновления..."
-curl -sSL "$UPDATE_SCRIPT_URL" -o /opt/bin/update_mihomo.sh || { echo "[ERROR] Не удалось загрузить обновление"; exit 1; }
 
-# Даем права на выполнение скрипта
+echo "[INFO] Загружаю update_mihomo.sh..."
+
+curl -fsSL "$UPDATE_SCRIPT_URL" -o /opt/bin/update_mihomo.sh || {
+    echo "[ERROR] Не удалось скачать update_mihomo.sh"
+    exit 1
+}
+
+# =========================================
+# Исправление старого URL keys.json
+# =========================================
+
+echo "[INFO] Проверяю URL keys.json..."
+
+sed -i \
+'s|https://raw.githubusercontent.com/tiagorrg/vless-checker/main/keys.json|https://raw.githubusercontent.com/tiagorrg/vless-checker/main/docs/keys.json|g' \
+/opt/bin/update_mihomo.sh
+
 chmod +x /opt/bin/update_mihomo.sh
-echo "[INFO] Запуск скрипта обновления..."
-/opt/bin/update_mihomo.sh || { echo "[ERROR] Не удалось запустить обновление"; exit 1; }
 
-# =========================
-# Добавление задачи в cron
-# =========================
-
-# Проверяем, установлен ли cron
-if ! command -v crond &> /dev/null; then
-    echo "[INFO] Cron не установлен, устанавливаю..."
-    opkg install cron || { echo "[ERROR] Не удалось установить cron"; exit 1; }
-    /etc/init.d/cron enable || { echo "[ERROR] Не удалось включить cron"; exit 1; }
-    /etc/init.d/cron start || { echo "[ERROR] Не удалось запустить cron"; exit 1; }
+# Проверка исправления
+if grep -q "main/docs/keys.json" /opt/bin/update_mihomo.sh; then
+    echo "[INFO] URL keys.json исправлен"
 else
-    echo "[INFO] Cron уже установлен"
+    echo "[WARNING] URL keys.json не найден"
 fi
 
-# Проверяем, есть ли уже задача в cron для обновления
-EXISTING_CRON_JOBS=$(crontab -l 2>/dev/null)
+# =========================================
+# Запуск updater
+# =========================================
+
+echo "[INFO] Запуск update_mihomo.sh..."
+
+/opt/bin/update_mihomo.sh || {
+    echo "[ERROR] Ошибка выполнения update_mihomo.sh"
+    exit 1
+}
+
+# =========================================
+# Настройка cron
+# =========================================
+
+echo "[INFO] Настройка cron..."
+
+# Проверка crond
+if ! command -v crond >/dev/null 2>&1; then
+    echo "[ERROR] crond не найден"
+else
+    echo "[INFO] crond найден"
+fi
+
+# Запуск cron для Entware
+if [ -x /opt/etc/init.d/S10cron ]; then
+    /opt/etc/init.d/S10cron enable
+    /opt/etc/init.d/S10cron start
+fi
+
+# Cron задача
 CRON_JOB="*/30 * * * * /opt/bin/update_mihomo.sh"
 
-if echo "$EXISTING_CRON_JOBS" | grep -q "$CRON_JOB"; then
-    echo "[INFO] Задача cron для обновления уже существует, пропускаем установку."
+# Проверяем наличие задачи
+EXISTING_CRON_JOBS=$(crontab -l 2>/dev/null)
+
+if echo "$EXISTING_CRON_JOBS" | grep -Fq "$CRON_JOB"; then
+    echo "[INFO] Cron задача уже существует"
 else
-    echo "[INFO] Задачи cron для обновления не найдены, добавляю задачу..."
-    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-    echo "[INFO] Задача cron добавлена!"
+    echo "[INFO] Добавляю cron задачу..."
+
+    (
+        crontab -l 2>/dev/null
+        echo "$CRON_JOB"
+    ) | crontab -
+
+    echo "[INFO] Cron задача добавлена"
 fi
 
-echo "[INFO] Обновление завершено успешно!"
+# =========================================
+# Завершение
+# =========================================
+
+echo "[INFO] Установка и настройка завершены успешно!"
+
 exit 0
